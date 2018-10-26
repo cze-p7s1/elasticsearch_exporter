@@ -33,6 +33,7 @@ func main() {
 		logLevel             = flag.String("log.level", "info", "Sets the loglevel. Valid levels are debug, info, warn, error")
 		logFormat            = flag.String("log.format", "logfmt", "Sets the log format. Valid formats are json and logfmt")
 		logOutput            = flag.String("log.output", "stdout", "Sets the log output. Valid outputs are stdout and stderr")
+		netProxy             = flag.String("network.proxy", "", "Configure the http client with an http proxy")
 		showVersion          = flag.Bool("version", false, "Show version and exit")
 	)
 	flag.Parse()
@@ -60,10 +61,26 @@ func main() {
 	// returns nil if not provided and falls back to simple TCP.
 	tlsConfig := createTLSConfig(*esCA, *esClientCert, *esClientPrivateKey, *esInsecureSkipVerify)
 
+	fmt.Println(netProxy)
+
+	// if netProxy {
+	// 	Proxy: http.ProxyURL(netProxy)
+	// }
+
+	proxyURL, err := url.Parse(*netProxy)
+	if err != nil {
+		_ = level.Error(logger).Log(
+			"msg", "failed to parse network.proxy",
+			"err", err,
+		)
+		os.Exit(1)
+	}
+
 	httpClient := &http.Client{
 		Timeout: *esTimeout,
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
+			Proxy:           http.ProxyURL(proxyURL),
 		},
 	}
 
