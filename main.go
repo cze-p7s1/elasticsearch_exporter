@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/cze-p7s1/elasticsearch_exporter/collector"
 	"github.com/go-kit/kit/log/level"
-	"github.com/justwatchcom/elasticsearch_exporter/collector"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 )
@@ -61,27 +61,28 @@ func main() {
 	// returns nil if not provided and falls back to simple TCP.
 	tlsConfig := createTLSConfig(*esCA, *esClientCert, *esClientPrivateKey, *esInsecureSkipVerify)
 
-	fmt.Println(netProxy)
+	constructedTransport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
 
-	// if netProxy {
-	// 	Proxy: http.ProxyURL(netProxy)
-	// }
-
-	proxyURL, err := url.Parse(*netProxy)
-	if err != nil {
-		_ = level.Error(logger).Log(
-			"msg", "failed to parse network.proxy",
-			"err", err,
+	if len(*netProxy) > 0 {
+		level.Debug(logger).Log(
+			"msg", "found proxy",
 		)
-		os.Exit(1)
+		proxyURL, err := url.Parse(*netProxy)
+		if err != nil {
+			_ = level.Debug(logger).Log(
+				"msg", "failed to parse network.proxy",
+				"err", err,
+			)
+			os.Exit(1)
+		}
+		constructedTransport.Proxy = http.ProxyURL(proxyURL)
 	}
 
 	httpClient := &http.Client{
-		Timeout: *esTimeout,
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-			Proxy:           http.ProxyURL(proxyURL),
-		},
+		Timeout:   *esTimeout,
+		Transport: constructedTransport,
 	}
 
 	// version metric
