@@ -91,7 +91,7 @@ func main() {
 	versionMetric := version.NewCollector(Name)
 	prometheus.MustRegister(versionMetric)
 	prometheus.MustRegister(collector.NewClusterHealth(logger, httpClient, esURL, httpBasicUser, httpBasicPassword))
-	prometheus.MustRegister(collector.NewNodes(logger, httpClient, esURL, *esAllNodes, *esNode))
+	prometheus.MustRegister(collector.NewNodes(logger, httpClient, esURL, httpBasicUser, httpBasicPassword, *esAllNodes, *esNode))
 	if *esExportIndices || *esExportShards {
 		prometheus.MustRegister(collector.NewIndices(logger, httpClient, esURL, *esExportShards))
 	}

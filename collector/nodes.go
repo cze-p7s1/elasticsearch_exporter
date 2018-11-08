@@ -124,11 +124,13 @@ type filesystemIODeviceMetric struct {
 
 // Nodes information struct
 type Nodes struct {
-	logger log.Logger
-	client *http.Client
-	url    *url.URL
-	all    bool
-	node   string
+	logger            log.Logger
+	client            *http.Client
+	url               *url.URL
+	all               bool
+	node              string
+	httpBasicUser     *string
+	httpBasicPassword *string
 
 	up                              prometheus.Gauge
 	totalScrapes, jsonParseFailures prometheus.Counter
@@ -142,13 +144,15 @@ type Nodes struct {
 }
 
 // NewNodes defines Nodes Prometheus metrics
-func NewNodes(logger log.Logger, client *http.Client, url *url.URL, all bool, node string) *Nodes {
+func NewNodes(logger log.Logger, client *http.Client, url *url.URL, httpBasicUser *string, httpBasicPassword *string, all bool, node string) *Nodes {
 	return &Nodes{
-		logger: logger,
-		client: client,
-		url:    url,
-		all:    all,
-		node:   node,
+		logger:            logger,
+		client:            client,
+		url:               url,
+		all:               all,
+		node:              node,
+		httpBasicUser:     httpBasicUser,
+		httpBasicPassword: httpBasicPassword,
 
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: prometheus.BuildFQName(namespace, "node_stats", "up"),
@@ -1525,7 +1529,15 @@ func (c *Nodes) fetchAndDecodeNodeStats() (nodeStatsResponse, error) {
 		u.Path = path.Join(u.Path, "_nodes", c.node, "stats")
 	}
 
-	res, err := c.client.Get(u.String())
+	req, err := c.createRequest(u.String())
+	if err != nil {
+		_ = level.Warn(c.logger).Log(
+			"msg", "failed to create http.Request",
+			"err", err,
+		)
+	}
+
+	res, err := c.client.Do(req)
 	if err != nil {
 		return nsr, fmt.Errorf("failed to get cluster health from %s://%s:%s%s: %s",
 			u.Scheme, u.Hostname(), u.Port(), u.Path, err)
@@ -1550,6 +1562,24 @@ func (c *Nodes) fetchAndDecodeNodeStats() (nodeStatsResponse, error) {
 		return nsr, err
 	}
 	return nsr, nil
+}
+
+func (c *Nodes) createRequest(url string) (*http.Request, error) {
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		_ = level.Warn(c.logger).Log(
+			"msg", "failed to create http. Request",
+			"err", err,
+		)
+		return req, err
+	}
+
+	if len(*c.httpBasicUser) > 0 {
+		req.SetBasicAuth(*c.httpBasicUser, *c.httpBasicPassword)
+	}
+
+	return req, nil
 }
 
 // Collect gets nodes metric values
