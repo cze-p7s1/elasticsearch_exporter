@@ -245,18 +245,14 @@ func (c *ClusterHealth) fetchAndDecodeClusterHealth() (clusterHealthResponse, er
 	u := *c.url
 	u.Path = path.Join(u.Path, "/_cluster/health")
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := c.createRequest(u.String())
 	if err != nil {
 		_ = level.Warn(c.logger).Log(
-			"msg", "failed to create http. Request",
+			"msg", "failed to create http.Request",
 			"err", err,
 		)
 	}
-	fmt.Println(*c.httpBasicUser)
-	// fmt.Println(**c.httpBasicUser)
-	req.SetBasicAuth(*c.httpBasicUser, *c.httpBasicPassword)
 
-	// res, err := c.client.Get(u.String())
 	res, err := c.client.Do(req)
 	if err != nil {
 		return chr, fmt.Errorf("failed to get cluster health from %s://%s:%s%s: %s",
@@ -283,6 +279,24 @@ func (c *ClusterHealth) fetchAndDecodeClusterHealth() (clusterHealthResponse, er
 	}
 
 	return chr, nil
+}
+
+func (c *ClusterHealth) createRequest(url string) (*http.Request, error) {
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		_ = level.Warn(c.logger).Log(
+			"msg", "failed to create http. Request",
+			"err", err,
+		)
+		return req, err
+	}
+
+	if len(*c.httpBasicUser) > 0 {
+		req.SetBasicAuth(*c.httpBasicUser, *c.httpBasicPassword)
+	}
+
+	return req, nil
 }
 
 // Collect collects ClusterHealth metrics.
