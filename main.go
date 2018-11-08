@@ -93,10 +93,10 @@ func main() {
 	prometheus.MustRegister(collector.NewClusterHealth(logger, httpClient, esURL, httpBasicUser, httpBasicPassword))
 	prometheus.MustRegister(collector.NewNodes(logger, httpClient, esURL, httpBasicUser, httpBasicPassword, *esAllNodes, *esNode))
 	if *esExportIndices || *esExportShards {
-		prometheus.MustRegister(collector.NewIndices(logger, httpClient, esURL, *esExportShards))
+		prometheus.MustRegister(collector.NewIndices(logger, httpClient, esURL, httpBasicUser, httpBasicPassword, *esExportShards))
 	}
 	if *esExportSnapshots {
-		prometheus.MustRegister(collector.NewSnapshots(logger, httpClient, esURL))
+		prometheus.MustRegister(collector.NewSnapshots(logger, httpClient, esURL, httpBasicUser, httpBasicPassword))
 	}
 	http.Handle(*metricsPath, prometheus.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

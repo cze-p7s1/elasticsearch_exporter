@@ -39,9 +39,11 @@ var (
 
 // Snapshots information struct
 type Snapshots struct {
-	logger log.Logger
-	client *http.Client
-	url    *url.URL
+	logger            log.Logger
+	client            *http.Client
+	url               *url.URL
+	httpBasicUser     *string
+	httpBasicPassword *string
 
 	up                              prometheus.Gauge
 	totalScrapes, jsonParseFailures prometheus.Counter
@@ -51,11 +53,13 @@ type Snapshots struct {
 }
 
 // NewSnapshots defines Snapshots Prometheus metrics
-func NewSnapshots(logger log.Logger, client *http.Client, url *url.URL) *Snapshots {
+func NewSnapshots(logger log.Logger, client *http.Client, url *url.URL, httpBasicUser *string, httpBasicPassword *string) *Snapshots {
 	return &Snapshots{
-		logger: logger,
-		client: client,
-		url:    url,
+		logger:            logger,
+		client:            client,
+		url:               url,
+		httpBasicUser:     httpBasicUser,
+		httpBasicPassword: httpBasicPassword,
 
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: prometheus.BuildFQName(namespace, "snapshot_stats", "up"),
@@ -198,7 +202,17 @@ func (s *Snapshots) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (s *Snapshots) getAndParseURL(u *url.URL, data interface{}) error {
-	res, err := s.client.Get(u.String())
+	// res, err := s.client.Get(u.String())
+
+	req, err := s.createRequest(u.String())
+	if err != nil {
+		_ = level.Warn(s.logger).Log(
+			"msg", "failed to create http.Request",
+			"err", err,
+		)
+	}
+
+	res, err := s.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to get from %s://%s:%s%s: %s",
 			u.Scheme, u.Hostname(), u.Port(), u.Path, err)
@@ -247,6 +261,24 @@ func (s *Snapshots) fetchAndDecodeSnapshotsStats() (map[string]SnapshotStatsResp
 	}
 
 	return mssr, nil
+}
+
+func (s *Snapshots) createRequest(url string) (*http.Request, error) {
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		_ = level.Warn(s.logger).Log(
+			"msg", "failed to create http. Request",
+			"err", err,
+		)
+		return req, err
+	}
+
+	if len(*s.httpBasicUser) > 0 {
+		req.SetBasicAuth(*s.httpBasicUser, *s.httpBasicPassword)
+	}
+
+	return req, nil
 }
 
 // Collect gets Snapshots metric values

@@ -37,10 +37,12 @@ type shardMetric struct {
 
 // Indices information struct
 type Indices struct {
-	logger log.Logger
-	client *http.Client
-	url    *url.URL
-	shards bool
+	logger            log.Logger
+	client            *http.Client
+	url               *url.URL
+	shards            bool
+	httpBasicUser     *string
+	httpBasicPassword *string
 
 	up                prometheus.Gauge
 	totalScrapes      prometheus.Counter
@@ -51,12 +53,14 @@ type Indices struct {
 }
 
 // NewIndices defines Indices Prometheus metrics
-func NewIndices(logger log.Logger, client *http.Client, url *url.URL, shards bool) *Indices {
+func NewIndices(logger log.Logger, client *http.Client, url *url.URL, httpBasicUser *string, httpBasicPassword *string, shards bool) *Indices {
 	return &Indices{
-		logger: logger,
-		client: client,
-		url:    url,
-		shards: shards,
+		logger:            logger,
+		client:            client,
+		url:               url,
+		shards:            shards,
+		httpBasicUser:     httpBasicUser,
+		httpBasicPassword: httpBasicPassword,
 
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: prometheus.BuildFQName(namespace, "index_stats", "up"),
@@ -921,7 +925,15 @@ func (i *Indices) fetchAndDecodeIndexStats() (indexStatsResponse, error) {
 		u.RawQuery = "level=shards"
 	}
 
-	res, err := i.client.Get(u.String())
+	req, err := i.createRequest(u.String())
+	if err != nil {
+		_ = level.Warn(i.logger).Log(
+			"msg", "failed to create http.Request",
+			"err", err,
+		)
+	}
+
+	res, err := i.client.Do(req)
 	if err != nil {
 		return isr, fmt.Errorf("failed to get index stats from %s://%s:%s%s: %s",
 			u.Scheme, u.Hostname(), u.Port(), u.Path, err)
@@ -947,6 +959,24 @@ func (i *Indices) fetchAndDecodeIndexStats() (indexStatsResponse, error) {
 	}
 
 	return isr, nil
+}
+
+func (i *Indices) createRequest(url string) (*http.Request, error) {
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		_ = level.Warn(i.logger).Log(
+			"msg", "failed to create http. Request",
+			"err", err,
+		)
+		return req, err
+	}
+
+	if len(*i.httpBasicUser) > 0 {
+		req.SetBasicAuth(*i.httpBasicUser, *i.httpBasicPassword)
+	}
+
+	return req, nil
 }
 
 // Collect gets Indices metric values
