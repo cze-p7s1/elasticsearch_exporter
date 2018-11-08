@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/cze-p7s1/elasticsearch_exporter/collector"
@@ -17,6 +18,7 @@ import (
 func main() {
 	var (
 		Name                 = "elasticsearch_exporter"
+		proxyEnvVariable     = "http_proxy"
 		listenAddress        = flag.String("web.listen-address", ":9108", "Address to listen on for web interface and telemetry.")
 		metricsPath          = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
 		esURI                = flag.String("es.uri", "http://localhost:9200", "HTTP API address of an Elasticsearch node.")
@@ -33,7 +35,8 @@ func main() {
 		logLevel             = flag.String("log.level", "info", "Sets the loglevel. Valid levels are debug, info, warn, error")
 		logFormat            = flag.String("log.format", "logfmt", "Sets the log format. Valid formats are json and logfmt")
 		logOutput            = flag.String("log.output", "stdout", "Sets the log output. Valid outputs are stdout and stderr")
-		netProxy             = flag.String("network.proxy", "", "Configure the http client with an http proxy")
+		netProxyHost         = flag.String("network.proxy", "", "Configure the http client with an http proxy")
+		netProxyDisable      = flag.Bool("network.disableproxy", false, "Enable proxy configuration")
 		httpBasicUser        = flag.String("http.user", "", "HTTP Basic Username")
 		httpBasicPassword    = flag.String("http.password", "", "HTTP Basic Password")
 		showVersion          = flag.Bool("version", false, "Show version and exit")
@@ -60,6 +63,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	httpBasicUserEnv, ok := os.LookupEnv("ES_USER")
+	if ok {
+		level.Debug(logger).Log(
+			"msg", "Read USER name from enviroment variable ES_USER",
+		)
+		*httpBasicUser = httpBasicUserEnv
+	}
+
+	httpBasicPasswordEnv, ok := os.LookupEnv("ES_PASSWORD")
+	if ok {
+		level.Debug(logger).Log(
+			"msg", "Read PASSWORD name from enviroment variable ES_PASSWORD",
+		)
+		*httpBasicPassword = httpBasicPasswordEnv
+	}
+
 	// returns nil if not provided and falls back to simple TCP.
 	tlsConfig := createTLSConfig(*esCA, *esClientCert, *esClientPrivateKey, *esInsecureSkipVerify)
 
@@ -67,11 +86,33 @@ func main() {
 		TLSClientConfig: tlsConfig,
 	}
 
-	if len(*netProxy) > 0 {
-		level.Debug(logger).Log(
-			"msg", "found proxy",
+	if *netProxyDisable {
+		level.Info(logger).Log(
+			"msg", "Bypass proxy configuration",
 		)
-		proxyURL, err := url.Parse(*netProxy)
+	} else {
+
+		if len(*netProxyHost) == 0 {
+			if strings.HasPrefix(*esURI, "https") {
+				proxyEnvVariable = "https_proxy"
+				level.Debug(logger).Log(
+					"msg", fmt.Sprintf("https detected switch ENV_VAR to %s", proxyEnvVariable),
+				)
+			}
+
+			proxyServerEnv, ok := os.LookupEnv(proxyEnvVariable)
+			if ok {
+				level.Debug(logger).Log(
+					"msg", fmt.Sprintf("Set proxy to %s from ENV_VAR %s", proxyServerEnv, proxyEnvVariable),
+				)
+				*netProxyHost = proxyServerEnv
+			}
+		}
+
+		level.Debug(logger).Log(
+			"msg", fmt.Sprintf("Configure proxy to %s", *netProxyHost),
+		)
+		proxyURL, err := url.Parse(*netProxyHost)
 		if err != nil {
 			_ = level.Debug(logger).Log(
 				"msg", "failed to parse network.proxy",
