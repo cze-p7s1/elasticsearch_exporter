@@ -202,8 +202,6 @@ func (s *Snapshots) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (s *Snapshots) getAndParseURL(u *url.URL, data interface{}) error {
-	// res, err := s.client.Get(u.String())
-
 	req, err := s.createRequest(u.String())
 	if err != nil {
 		_ = level.Warn(s.logger).Log(
