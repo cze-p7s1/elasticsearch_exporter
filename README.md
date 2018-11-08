@@ -53,6 +53,7 @@ elasticsearch_exporter --help
 | es.client-private-key | Path to PEM file that contains the private key for client auth when connecting to Elasticsearch. | |
 | es.client-cert        | Path to PEM file that contains the corresponding cert for the private key to connect to Elasticsearch. | |
 | es.ssl-skip-verify    | Skip SSL verification when connecting to Elasticsearch. | false |
+| network.proxy         | Configures the http client with this proxy. | |
 | web.listen-address    | Address to listen on for web interface and telemetry. | :9108 |
 | web.telemetry-path    | Path under which to expose metrics. | /metrics |
 | version               | Show version info on stdout and exit. | |
