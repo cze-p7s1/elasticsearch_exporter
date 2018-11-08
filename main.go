@@ -34,10 +34,12 @@ func main() {
 		logFormat            = flag.String("log.format", "logfmt", "Sets the log format. Valid formats are json and logfmt")
 		logOutput            = flag.String("log.output", "stdout", "Sets the log output. Valid outputs are stdout and stderr")
 		netProxy             = flag.String("network.proxy", "", "Configure the http client with an http proxy")
+		httpBasicUser        = flag.String("http.user", "", "HTTP Basic Username")
+		httpBasicPassword    = flag.String("http.password", "", "HTTP Basic Password")
 		showVersion          = flag.Bool("version", false, "Show version and exit")
 	)
 	flag.Parse()
-
+	// exporter:bil4Itxz
 	if *showVersion {
 		fmt.Print(version.Print(Name))
 		os.Exit(0)
@@ -88,7 +90,7 @@ func main() {
 	// version metric
 	versionMetric := version.NewCollector(Name)
 	prometheus.MustRegister(versionMetric)
-	prometheus.MustRegister(collector.NewClusterHealth(logger, httpClient, esURL))
+	prometheus.MustRegister(collector.NewClusterHealth(logger, httpClient, esURL, httpBasicUser, httpBasicPassword))
 	prometheus.MustRegister(collector.NewNodes(logger, httpClient, esURL, *esAllNodes, *esNode))
 	if *esExportIndices || *esExportShards {
 		prometheus.MustRegister(collector.NewIndices(logger, httpClient, esURL, *esExportShards))

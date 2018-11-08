@@ -36,9 +36,11 @@ type clusterHealthStatusMetric struct {
 
 // ClusterHealth type defines the collector struct
 type ClusterHealth struct {
-	logger log.Logger
-	client *http.Client
-	url    *url.URL
+	logger            log.Logger
+	client            *http.Client
+	url               *url.URL
+	httpBasicUser     *string
+	httpBasicPassword *string
 
 	up                              prometheus.Gauge
 	totalScrapes, jsonParseFailures prometheus.Counter
@@ -48,13 +50,15 @@ type ClusterHealth struct {
 }
 
 // NewClusterHealth returns a new Collector exposing ClusterHealth stats.
-func NewClusterHealth(logger log.Logger, client *http.Client, url *url.URL) *ClusterHealth {
+func NewClusterHealth(logger log.Logger, client *http.Client, url *url.URL, httpBasicUser *string, httpBasicPassword *string) *ClusterHealth {
 	subsystem := "cluster_health"
 
 	return &ClusterHealth{
-		logger: logger,
-		client: client,
-		url:    url,
+		logger:            logger,
+		client:            client,
+		url:               url,
+		httpBasicUser:     httpBasicUser,
+		httpBasicPassword: httpBasicPassword,
 
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: prometheus.BuildFQName(namespace, subsystem, "up"),
@@ -237,10 +241,23 @@ func (c *ClusterHealth) Describe(ch chan<- *prometheus.Desc) {
 
 func (c *ClusterHealth) fetchAndDecodeClusterHealth() (clusterHealthResponse, error) {
 	var chr clusterHealthResponse
-
+	// exporter:bil4Itxz
 	u := *c.url
 	u.Path = path.Join(u.Path, "/_cluster/health")
-	res, err := c.client.Get(u.String())
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		_ = level.Warn(c.logger).Log(
+			"msg", "failed to create http. Request",
+			"err", err,
+		)
+	}
+	fmt.Println(*c.httpBasicUser)
+	// fmt.Println(**c.httpBasicUser)
+	req.SetBasicAuth(*c.httpBasicUser, *c.httpBasicPassword)
+
+	// res, err := c.client.Get(u.String())
+	res, err := c.client.Do(req)
 	if err != nil {
 		return chr, fmt.Errorf("failed to get cluster health from %s://%s:%s%s: %s",
 			u.Scheme, u.Hostname(), u.Port(), u.Path, err)
